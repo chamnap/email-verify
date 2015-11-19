@@ -67,6 +67,7 @@ module.exports.verify = function (email, options, callback) {
         var socket = net.createConnection(options.port, smtp);
         var success = false;
         var response = "";
+        var responseLog = [];
         var completed = false;
         var calledback = false;
         var ended = false;
@@ -79,7 +80,8 @@ module.exports.verify = function (email, options, callback) {
                        {
                           success: false,
                           info: "Connection Timed Out",
-                          addr: email
+                          addr: email,
+                          log: responseLog
                        });
             }
             socket.destroy()
@@ -89,6 +91,7 @@ module.exports.verify = function (email, options, callback) {
 
 
         socket.on('data', function(data) {
+          responseLog.push(data.toString());
           response += data.toString();
           completed = response.slice(-1) === '\n';
 
@@ -96,7 +99,11 @@ module.exports.verify = function (email, options, callback) {
               switch(stage) {
                   case 0: if (response.indexOf('220') > -1 && !ended) {
                               // Connection Worked
-                              socket.write("EHLO "+options.fqdn+"\r\n",function() { stage++; response = ""; });
+                              socket.write("EHLO "+options.fqdn+"\r\n",function() {
+                                stage++;
+                                response = "";
+                                responseLog.push("EHLO " + options.fqdn + "\r\n");
+                              });
                           }
                           else{
                               socket.end();
@@ -104,7 +111,11 @@ module.exports.verify = function (email, options, callback) {
                           break;
                   case 1: if (response.indexOf('250') > -1 && !ended) {
                               // Connection Worked
-                              socket.write("MAIL FROM:<"+options.sender+">\r\n",function() { stage++; response = ""; });
+                              socket.write("MAIL FROM:<"+options.sender+">\r\n",function() {
+                                stage++;
+                                response = "";
+                                responseLog.push("MAIL FROM:<" + options.sender + ">\r\n");
+                              });
                           }
                           else{
                               socket.end();
@@ -112,7 +123,11 @@ module.exports.verify = function (email, options, callback) {
                           break;
                   case 2: if (response.indexOf('250') > -1 && !ended) {
                               // MAIL Worked
-                              socket.write("RCPT TO:<" + email + ">\r\n",function() { stage++; response = ""; });
+                              socket.write("RCPT TO:<" + email + ">\r\n",function() {
+                                stage++;
+                                response = "";
+                                responseLog.push("RCPT TO:<" + email + ">\r\n");
+                              });
                           }
                           else{
                               socket.end();
@@ -125,7 +140,10 @@ module.exports.verify = function (email, options, callback) {
                           stage++;
                           response = "";
                           // close the connection cleanly.
-                          if(!ended) socket.write("QUIT\r\n");
+                          if(!ended) {
+                            socket.write("QUIT\r\n");
+                            responseLog.push("QUIT\r\n");
+                          }
                           break;
                   case 4:
                     socket.end();
@@ -137,7 +155,7 @@ module.exports.verify = function (email, options, callback) {
           ended = true;
           if( !calledback ){
             calledback = true;
-            callback( err, { success: false, info: null, addr: email });
+            callback( err, { success: false, info: null, addr: email, log: responseLog });
           }
         }).on('end', function() {
           ended = true;
@@ -146,7 +164,8 @@ module.exports.verify = function (email, options, callback) {
             callback(null, {
               success: success,
               info: (email + " is " + (success ? "a valid" : "an invalid") + " address"),
-              addr: email });
+              addr: email,
+              log: responseLog });
           }
         });
     }

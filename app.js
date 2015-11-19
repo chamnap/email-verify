@@ -92,6 +92,7 @@ else {
   addresses.forEach(function (val, index, array) {
     var verifier = require('./index.js');
     verifier.verify(val, options, function (err, info) {
+      console.log(info.log.join("\r\n"));
       if (!err && info.success) {
         console.log(info.addr);
       }
